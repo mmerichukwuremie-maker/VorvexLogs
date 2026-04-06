@@ -11,6 +11,7 @@ keep_alive()
 
 # --- CONFIG ---
 BOT_TOKEN = os.getenv("TOKEN")
+LOG_CHANNEL_ID = 1479806557050110146  # 🔴 PUT YOUR CHANNEL ID HERE
 
 # --- Database Setup ---
 conn = sqlite3.connect('transactions.db')
@@ -45,6 +46,11 @@ def add_transaction(t_type, amount, currency, mode, sender, receiver, notes=""):
     conn.commit()
     return c.lastrowid, timestamp
 
+async def send_log(embed):
+    channel = bot.get_channel(LOG_CHANNEL_ID)
+    if channel:
+        await channel.send(embed=embed)
+
 # --- Ready ---
 @bot.event
 async def on_ready():
@@ -75,6 +81,7 @@ async def deposit(interaction: discord.Interaction, amount: float, mode: app_com
         embed.add_field(name="Notes", value=notes, inline=False)
 
     await interaction.response.send_message(embed=embed)
+    await send_log(embed)
 
 # Transfer
 @bot.tree.command(name="transfer", description="Log a transfer")
@@ -98,6 +105,7 @@ async def transfer(interaction: discord.Interaction, amount: float, mode: app_co
         embed.add_field(name="Notes", value=notes, inline=False)
 
     await interaction.response.send_message(embed=embed)
+    await send_log(embed)
 
 # Payout
 @bot.tree.command(name="payout", description="Log a payout")
@@ -121,6 +129,7 @@ async def payout(interaction: discord.Interaction, amount: float, mode: app_comm
         embed.add_field(name="Notes", value=notes, inline=False)
 
     await interaction.response.send_message(embed=embed)
+    await send_log(embed)
 
 # View
 @bot.tree.command(name="view", description="View last 10 transactions")
@@ -136,6 +145,28 @@ async def view(interaction: discord.Interaction):
         embed = discord.Embed(title="📋 Transactions", description=msg, color=discord.Color.purple())
     else:
         embed = discord.Embed(title="📋 Transactions", description="No data.", color=discord.Color.red())
+
+    await interaction.response.send_message(embed=embed)
+
+# Totals
+@bot.tree.command(name="totals", description="View total earnings per developer")
+async def totals(interaction: discord.Interaction):
+    
+    c.execute("""
+        SELECT receiver, SUM(amount)
+        FROM transactions
+        WHERE type = 'Payout'
+        GROUP BY receiver
+    """)
+    rows = c.fetchall()
+
+    if rows:
+        msg = ""
+        for dev, total in rows:
+            msg += f"{dev}: {total}\n"
+        embed = discord.Embed(title="💰 Total Earnings", description=msg, color=discord.Color.green())
+    else:
+        embed = discord.Embed(title="💰 Total Earnings", description="No data.", color=discord.Color.red())
 
     await interaction.response.send_message(embed=embed)
 
