@@ -11,9 +11,9 @@ keep_alive()
 
 # --- CONFIG ---
 BOT_TOKEN = os.getenv("TOKEN")
-LOG_CHANNEL_ID = 1479806557050110146  # PUT YOUR CHANNEL ID
+LOG_CHANNEL_ID = 123456789012345678  # PUT YOUR CHANNEL ID
 
-# --- Database ---
+# --- DATABASE ---
 conn = sqlite3.connect('transactions.db', check_same_thread=False)
 c = conn.cursor()
 
@@ -33,11 +33,11 @@ CREATE TABLE IF NOT EXISTS transactions (
 ''')
 conn.commit()
 
-# --- Bot ---
+# --- BOT ---
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# --- Helpers ---
+# --- HELPERS ---
 def add_transaction(t_type, amount, currency, mode, sender, receiver, notes=""):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     c.execute('''
@@ -53,21 +53,21 @@ async def send_log(embed):
         channel = await bot.fetch_channel(LOG_CHANNEL_ID)
     await channel.send(embed=embed)
 
-# --- Ready ---
+# --- READY ---
 @bot.event
 async def on_ready():
-    await bot.tree.sync()
+    synced = await bot.tree.sync()
+    print(f"Synced {len(synced)} commands")
     print(f"Logged in as {bot.user}")
 
 # ======================
 # 💰 DEPOSIT
 # ======================
-@bot.tree.command(name="deposit")
+@bot.tree.command(name="deposit", description="Log a deposit")
 @app_commands.describe(amount="Amount", mode="Robux or Real Money", client="Client", developer="Developer", notes="Notes")
 async def deposit(interaction: discord.Interaction, amount: float, mode: str, client: discord.Member, developer: discord.Member, notes: str = ""):
 
     currency = "Money" if mode == "Real Money" else "Robux"
-
     tid, timestamp = add_transaction("Deposit", amount, currency, mode, client.name, developer.name, notes)
 
     embed = discord.Embed(title="Deposit Recorded", color=discord.Color.green())
@@ -82,12 +82,11 @@ async def deposit(interaction: discord.Interaction, amount: float, mode: str, cl
 # ======================
 # 🔄 TRANSFER
 # ======================
-@bot.tree.command(name="transfer")
+@bot.tree.command(name="transfer", description="Log a transfer")
 @app_commands.describe(amount="Amount", mode="Robux or Real Money", sender="Sender", receiver="Receiver", notes="Notes")
 async def transfer(interaction: discord.Interaction, amount: float, mode: str, sender: discord.Member, receiver: discord.Member, notes: str = ""):
 
     currency = "Money" if mode == "Real Money" else "Robux"
-
     tid, timestamp = add_transaction("Transfer", amount, currency, mode, sender.name, receiver.name, notes)
 
     embed = discord.Embed(title="Transfer Recorded", color=discord.Color.blue())
@@ -102,17 +101,16 @@ async def transfer(interaction: discord.Interaction, amount: float, mode: str, s
 # ======================
 # 🏦 PAYOUT
 # ======================
-@bot.tree.command(name="payout")
+@bot.tree.command(name="payout", description="Log a payout")
 @app_commands.describe(amount="Amount", mode="Robux or Real Money", developer="Developer", notes="Notes")
 async def payout(interaction: discord.Interaction, amount: float, mode: str, developer: discord.Member, notes: str = ""):
 
     currency = "Money" if mode == "Real Money" else "Robux"
-
     tid, timestamp = add_transaction("Payout", amount, currency, mode, "Vornex Corp", developer.name, notes)
 
     embed = discord.Embed(title="Payout Recorded", color=discord.Color.gold())
     embed.add_field(name="ID", value=tid)
-    embed.add_field(name="From → To", value=f"Vornex Corp → {developer.mention}")
+    embed.add_field(name="To", value=developer.mention)
     embed.add_field(name="Amount", value=f"{amount} {currency}")
     embed.add_field(name="Time", value=timestamp)
 
@@ -120,29 +118,9 @@ async def payout(interaction: discord.Interaction, amount: float, mode: str, dev
     await send_log(embed)
 
 # ======================
-# 🗑️ DELETE
+# 📊 TOTALS
 # ======================
-@bot.tree.command(name="delete")
-async def delete(interaction: discord.Interaction, id: int):
-
-    c.execute("SELECT * FROM transactions WHERE id=?", (id,))
-    if not c.fetchone():
-        await interaction.response.send_message("Transaction not found.", ephemeral=True)
-        return
-
-    c.execute("DELETE FROM transactions WHERE id=?", (id,))
-    conn.commit()
-
-    embed = discord.Embed(title="Transaction Deleted", color=discord.Color.red())
-    embed.add_field(name="ID", value=id)
-
-    await interaction.response.send_message(embed=embed)
-    await send_log(embed)
-
-# ======================
-# 👤 TOTALS
-# ======================
-@bot.tree.command(name="totals")
+@bot.tree.command(name="totals", description="View earnings")
 @app_commands.describe(developer="Optional developer")
 async def totals(interaction: discord.Interaction, developer: discord.Member = None):
 
@@ -159,59 +137,9 @@ async def totals(interaction: discord.Interaction, developer: discord.Member = N
     await interaction.response.send_message(embed=embed)
 
 # ======================
-# 🔍 SEARCH
-# ======================
-@bot.tree.command(name="search")
-@app_commands.describe(user="User", id="Transaction ID")
-async def search(interaction: discord.Interaction, user: discord.Member = None, id: int = None):
-
-    if id:
-        c.execute("SELECT * FROM transactions WHERE id=?", (id,))
-    elif user:
-        c.execute("SELECT * FROM transactions WHERE sender=? OR receiver=?", (user.name, user.name))
-    else:
-        await interaction.response.send_message("Provide a user or ID.", ephemeral=True)
-        return
-
-    rows = c.fetchall()
-    msg = "\n".join([f"ID {r[0]} | {r[1]} | {r[2]} {r[3]}" for r in rows[:10]]) or "No results"
-
-    embed = discord.Embed(title="Search Results", description=msg, color=discord.Color.blue())
-    await interaction.response.send_message(embed=embed)
-
-# ======================
-# 📅 RECENT
-# ======================
-@bot.tree.command(name="recent")
-@app_commands.describe(period="week, month, 6months, year")
-async def recent(interaction: discord.Interaction, period: str):
-
-    now = datetime.now()
-
-    if period == "week":
-        cutoff = now - timedelta(days=7)
-    elif period == "month":
-        cutoff = now - timedelta(days=30)
-    elif period == "6months":
-        cutoff = now - timedelta(days=180)
-    elif period == "year":
-        cutoff = now - timedelta(days=365)
-    else:
-        await interaction.response.send_message("Invalid period.", ephemeral=True)
-        return
-
-    c.execute("SELECT * FROM transactions")
-    rows = [r for r in c.fetchall() if datetime.strptime(r[7], "%Y-%m-%d %H:%M:%S") >= cutoff]
-
-    msg = "\n".join([f"{r[1]} | {r[2]} {r[3]}" for r in rows[:10]]) or "No data"
-
-    embed = discord.Embed(title="Recent Transactions", description=msg, color=discord.Color.purple())
-    await interaction.response.send_message(embed=embed)
-
-# ======================
 # 📊 SUMMARY
 # ======================
-@bot.tree.command(name="summary")
+@bot.tree.command(name="summary", description="Financial summary")
 async def summary(interaction: discord.Interaction):
 
     c.execute("SELECT SUM(amount) FROM transactions WHERE type='Deposit'")
