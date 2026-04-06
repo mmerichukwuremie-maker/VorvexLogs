@@ -11,7 +11,7 @@ keep_alive()
 
 # --- CONFIG ---
 BOT_TOKEN = os.getenv("TOKEN")
-LOG_CHANNEL_ID = 1479806557050110146  # 🔴 PUT YOUR CHANNEL ID HERE
+LOG_CHANNEL_ID = 1479806557050110146  # PUT YOUR CHANNEL ID HERE
 
 # --- Database Setup ---
 conn = sqlite3.connect('transactions.db')
@@ -48,8 +48,11 @@ def add_transaction(t_type, amount, currency, mode, sender, receiver, notes=""):
 
 async def send_log(embed):
     channel = bot.get_channel(LOG_CHANNEL_ID)
-    if channel:
-        await channel.send(embed=embed)
+
+    if channel is None:
+        channel = await bot.fetch_channel(LOG_CHANNEL_ID)
+
+    await channel.send(embed=embed)
 
 # --- Ready ---
 @bot.event
