@@ -11,7 +11,7 @@ keep_alive()
 
 # --- CONFIG ---
 BOT_TOKEN = os.getenv("TOKEN")
-LOG_CHANNEL_ID = 123456789012345678  # PUT YOUR CHANNEL ID
+LOG_CHANNEL_ID = 1479806557050110146  # PUT YOUR CHANNEL ID
 
 # --- DATABASE ---
 conn = sqlite3.connect('transactions.db', check_same_thread=False)
