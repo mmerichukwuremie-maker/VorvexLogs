@@ -45,6 +45,7 @@ def add_transaction(t_type, amount, currency, mode, sender, receiver, notes=""):
     conn.commit()
     return c.lastrowid, timestamp
 
+
 def get_time_filter(range):
     now = datetime.now()
 
@@ -59,18 +60,32 @@ def get_time_filter(range):
     else:
         return None
 
+
 async def send_log(embed):
     channel = bot.get_channel(LOG_CHANNEL_ID)
     if channel is None:
         channel = await bot.fetch_channel(LOG_CHANNEL_ID)
+
     await channel.send(embed=embed)
+
 
 # --- READY ---
 @bot.event
 async def on_ready():
-    synced = await bot.tree.sync()
-    print(f"Synced {len(synced)} commands")
     print(f"Logged in as {bot.user}")
+
+
+# ======================
+# MANUAL SYNC (IMPORTANT FIX)
+# ======================
+@bot.command()
+@commands.is_owner()
+async def sync(ctx):
+    """Manually sync slash commands (run only when needed)"""
+    guild = discord.Object(id=ctx.guild.id)
+    synced = await bot.tree.sync(guild=guild)
+    await ctx.send(f"✅ Synced {len(synced)} commands (guild only)")
+
 
 # ======================
 # DEPOSIT
@@ -90,6 +105,7 @@ async def deposit(interaction: discord.Interaction, amount: float, mode: str, cl
     await interaction.response.send_message(embed=embed)
     await send_log(embed)
 
+
 # ======================
 # TRANSFER
 # ======================
@@ -108,6 +124,7 @@ async def transfer(interaction: discord.Interaction, amount: float, mode: str, s
     await interaction.response.send_message(embed=embed)
     await send_log(embed)
 
+
 # ======================
 # PAYOUT
 # ======================
@@ -125,6 +142,7 @@ async def payout(interaction: discord.Interaction, amount: float, mode: str, dev
 
     await interaction.response.send_message(embed=embed)
     await send_log(embed)
+
 
 # ======================
 # DELETE
@@ -148,6 +166,7 @@ async def delete(interaction: discord.Interaction, transaction_id: int, user: di
 
     await interaction.response.send_message(f"Transaction {transaction_id} deleted.")
 
+
 # ======================
 # TOTALS
 # ======================
@@ -165,8 +184,9 @@ async def totals(interaction: discord.Interaction):
     embed = discord.Embed(title="Total Earnings", description=msg, color=discord.Color.green())
     await interaction.response.send_message(embed=embed)
 
+
 # ======================
-# SUMMARY WITH FILTERS
+# SUMMARY
 # ======================
 @bot.tree.command(name="summary")
 @app_commands.describe(range="weekly, monthly, 6months, year")
@@ -190,14 +210,15 @@ async def summary(interaction: discord.Interaction, range: str = None):
     profit = deposits - payouts
 
     embed = discord.Embed(title="Financial Summary", color=discord.Color.dark_green())
-    embed.add_field(name="Deposits", value=round(deposits,2))
-    embed.add_field(name="Payouts", value=round(payouts,2))
-    embed.add_field(name="Net", value=round(profit,2))
+    embed.add_field(name="Deposits", value=round(deposits, 2))
+    embed.add_field(name="Payouts", value=round(payouts, 2))
+    embed.add_field(name="Net", value=round(profit, 2))
 
     if range:
         embed.set_footer(text=f"Range: {range}")
 
     await interaction.response.send_message(embed=embed)
+
 
 # --- RUN ---
 bot.run(BOT_TOKEN)
