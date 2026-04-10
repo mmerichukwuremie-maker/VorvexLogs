@@ -4,13 +4,13 @@ import os
 
 app = Flask(__name__)
 
-@app.route('/')
+@app.route("/")
 def home():
     return "Bot is running."
 
 def run():
-    port = int(os.environ.get("PORT", 8080))
-    app.run(host='0.0.0.0', port=port)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
 
 def keep_alive():
     t = Thread(target=run)
