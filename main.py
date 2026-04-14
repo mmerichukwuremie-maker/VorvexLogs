@@ -9,7 +9,7 @@ from keep_alive import keep_alive
 keep_alive()
 
 BOT_TOKEN = os.environ.get("TOKEN")
-LOG_CHANNEL_ID = 1479806557050110146  # #financial-logs
+LOG_CHANNEL_ID = 1493250315858743326  # #financial-logs
 
 if not BOT_TOKEN:
     raise ValueError("TOKEN missing")
@@ -24,7 +24,6 @@ CREATE TABLE IF NOT EXISTS transactions (
     type TEXT,
     amount REAL,
     currency TEXT,
-    mode TEXT,
     sender TEXT,
     receiver TEXT,
     timestamp TEXT,
@@ -39,13 +38,13 @@ intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ---------------- HELPERS ----------------
-def add_transaction(t_type, amount, currency, mode, sender, receiver, notes="", status="Pending"):
+def add_transaction(t_type, amount, currency, sender, receiver, notes="", status="Pending"):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     c.execute('''
-        INSERT INTO transactions (type, amount, currency, mode, sender, receiver, timestamp, status, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (t_type, amount, currency, mode, sender, receiver, timestamp, status, notes))
+        INSERT INTO transactions (type, amount, currency, sender, receiver, timestamp, status, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (t_type, amount, currency, sender, receiver, timestamp, status, notes))
 
     conn.commit()
     return c.lastrowid, timestamp
@@ -72,7 +71,7 @@ class ApprovalView(discord.ui.View):
         c.execute("UPDATE transactions SET status='Approved' WHERE id=?", (self.tid,))
         conn.commit()
 
-        await interaction.response.send_message(f"✅ Transaction {self.tid} approved")
+        await interaction.response.send_message(f"✅ Transaction {self.tid} approved", ephemeral=True)
 
     @discord.ui.button(label="❌ Deny", style=discord.ButtonStyle.red)
     async def deny(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -83,17 +82,23 @@ class ApprovalView(discord.ui.View):
         c.execute("UPDATE transactions SET status='Denied' WHERE id=?", (self.tid,))
         conn.commit()
 
-        await interaction.response.send_message(f"❌ Transaction {self.tid} denied")
+        await interaction.response.send_message(f"❌ Transaction {self.tid} denied", ephemeral=True)
 
 # ---------------- READY ----------------
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
 
+    try:
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} commands")
+    except Exception as e:
+        print("Sync error:", e)
+
 # ---------------- MODE CHOICES ----------------
 mode_choices = [
-    app_commands.Choice(name="$", value="usd"),
-    app_commands.Choice(name="Robux", value="robux")
+    app_commands.Choice(name="$", value="$"),
+    app_commands.Choice(name="Robux", value="Robux")
 ]
 
 # ---------------- DEPOSIT ----------------
@@ -102,12 +107,12 @@ mode_choices = [
 async def deposit(interaction: discord.Interaction, amount: float, mode: app_commands.Choice[str], client: discord.Member, developer: discord.Member, notes: str = ""):
 
     if amount <= 0:
-        await interaction.response.send_message("❌ Invalid amount", ephemeral=True)
+        await interaction.response.send_message("❌ Amount must be > 0", ephemeral=True)
         return
 
-    currency = "$" if mode.value == "usd" else "Robux"
+    currency = mode.value
 
-    tid, timestamp = add_transaction("Deposit", amount, currency, mode.value, client.name, developer.name, notes)
+    tid, timestamp = add_transaction("Deposit", amount, currency, client.name, developer.name, notes)
 
     embed = discord.Embed(title="📥 Deposit (Pending)", color=discord.Color.orange(), timestamp=datetime.now())
     embed.add_field(name="ID", value=tid)
@@ -124,12 +129,12 @@ async def deposit(interaction: discord.Interaction, amount: float, mode: app_com
 async def payout(interaction: discord.Interaction, amount: float, mode: app_commands.Choice[str], developer: discord.Member, notes: str = ""):
 
     if amount <= 0:
-        await interaction.response.send_message("❌ Invalid amount", ephemeral=True)
+        await interaction.response.send_message("❌ Amount must be > 0", ephemeral=True)
         return
 
-    currency = "$" if mode.value == "usd" else "Robux"
+    currency = mode.value
 
-    tid, timestamp = add_transaction("Payout", amount, currency, mode.value, "Company", developer.name, notes)
+    tid, timestamp = add_transaction("Payout", amount, currency, "Company", developer.name, notes)
 
     embed = discord.Embed(title="💸 Payout (Pending)", color=discord.Color.gold(), timestamp=datetime.now())
     embed.add_field(name="ID", value=tid)
@@ -146,12 +151,12 @@ async def payout(interaction: discord.Interaction, amount: float, mode: app_comm
 async def transfer(interaction: discord.Interaction, amount: float, mode: app_commands.Choice[str], sender: discord.Member, receiver: discord.Member, notes: str = ""):
 
     if amount <= 0:
-        await interaction.response.send_message("❌ Invalid amount", ephemeral=True)
+        await interaction.response.send_message("❌ Amount must be > 0", ephemeral=True)
         return
 
-    currency = "$" if mode.value == "usd" else "Robux"
+    currency = mode.value
 
-    tid, timestamp = add_transaction("Transfer", amount, currency, mode.value, sender.name, receiver.name, notes)
+    tid, timestamp = add_transaction("Transfer", amount, currency, sender.name, receiver.name, notes)
 
     embed = discord.Embed(title="🔁 Transfer (Pending)", color=discord.Color.blue(), timestamp=datetime.now())
     embed.add_field(name="ID", value=tid)
