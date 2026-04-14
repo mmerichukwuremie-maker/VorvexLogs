@@ -62,16 +62,27 @@ class ApprovalView(discord.ui.View):
         super().__init__(timeout=None)
         self.tid = tid
 
+    async def update_message(self, interaction, status, color):
+        c.execute("UPDATE transactions SET status=? WHERE id=?", (status, self.tid))
+        conn.commit()
+
+        embed = interaction.message.embeds[0]
+        embed.color = color
+        embed.title = embed.title.replace("(Pending)", f"({status})")
+
+        # disable buttons after action
+        for item in self.children:
+            item.disabled = True
+
+        await interaction.response.edit_message(embed=embed, view=self)
+
     @discord.ui.button(label="✅ Approve", style=discord.ButtonStyle.green)
     async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
         if not interaction.user.guild_permissions.administrator:
             await interaction.response.send_message("❌ Admin only", ephemeral=True)
             return
 
-        c.execute("UPDATE transactions SET status='Approved' WHERE id=?", (self.tid,))
-        conn.commit()
-
-        await interaction.response.send_message(f"✅ Transaction {self.tid} approved", ephemeral=True)
+        await self.update_message(interaction, "Approved", discord.Color.green())
 
     @discord.ui.button(label="❌ Deny", style=discord.ButtonStyle.red)
     async def deny(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -79,10 +90,7 @@ class ApprovalView(discord.ui.View):
             await interaction.response.send_message("❌ Admin only", ephemeral=True)
             return
 
-        c.execute("UPDATE transactions SET status='Denied' WHERE id=?", (self.tid,))
-        conn.commit()
-
-        await interaction.response.send_message(f"❌ Transaction {self.tid} denied", ephemeral=True)
+        await self.update_message(interaction, "Denied", discord.Color.red())
 
 # ---------------- READY ----------------
 @bot.event
