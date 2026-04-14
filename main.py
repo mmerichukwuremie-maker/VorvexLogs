@@ -172,7 +172,7 @@ async def transfer(interaction: discord.Interaction, amount: float, mode: app_co
     embed.add_field(name="Amount", value=f"{amount} {currency}")
     embed.add_field(name="Notes", value=notes or "None")
 
-    await interaction.response.send_message(embed=embed)
+    await interaction.response.send_message("✅ Transaction sent to #financial-logs", ephemeral=True)
     await send_log(embed, ApprovalView(tid))
 
 # ---------------- TOTALS ----------------
